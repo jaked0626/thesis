@@ -1,7 +1,6 @@
 ## Reading Line by Line 
 
 import os
-import resource
 
 INPUT_FILE_PATH = "/Volumes/NO NAME/ntt-data/test/01_総数_20190101_20190131_sample.csv"
 OUTPUT_FILE_PATH = "./output.csv"
@@ -70,7 +69,7 @@ def sample_gzip():
                 # Split the line into columns using the comma delimiter
                 columns = line.split(',')
                 # Check if the 5th column starts with 5339
-                if columns[4].startswith('5339'):
+                if columns[3].startswith('5339'):
                     # Write the line to the output file
                     out.write(line)
 
@@ -80,21 +79,30 @@ def sample_gzip():
 
 ## datatable implementation 
 
-import datatable as dt
-def sample_datatable():
-    start = time.time()
+# import datatable as dt
+# from datatable import f
+# def sample_datatable():
+#     start = time.time()
 
-    # Read the .csv.gz file using datatable's fread function
-    df = dt.fread(INPUT_FILE_PATH)
-    print(f"reading step completed in {time.time() - start} seconds")
+#     # Read the .csv.gz file using datatable's fread function
+#     df = dt.fread(INPUT_FILE_PATH)
+#     print(f"reading step completed in {time.time() - start} seconds")
 
-    # Filter the dataframe to only include rows where the "area" column starts with 5339
-    df_filtered = df[dt.startswith(dt.str(df['area']), '5339')]
-    print(f"filtering step completed in {time.time() - start} seconds")
+#     # Filter the dataframe to only include rows where the "area" column starts with 5339
+#     df_filtered = df[(533900000 <= f.area) & (f.area <= 534000000), :]
+#     print(f"filtering step completed in {time.time() - start} seconds")
 
-    # Output the filtered dataframe to a new CSV file
-    df_filtered.to_csv('filtered3.csv')
+#     # Output the filtered dataframe to a new CSV file
+#     df_filtered.to_hdf('./filtered3.h5', key='stage', mode='w')
 
-    end = time.time()
+#     end = time.time()
 
-    print(f"datatable took {end - start} seconds to finish")
+#     print(f"datatable took {end - start} seconds to finish")
+
+def main():
+    files = []
+
+
+
+if __name__=="__main__":
+    main()
