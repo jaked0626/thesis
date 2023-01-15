@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import glob
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def load_data() -> dd.DataFrame:
@@ -157,6 +158,7 @@ def load_shibuya_daily_pop_covid():
     jp_covid_data = pd.read_csv(f"{datapath}/covid_data/jp_covid_data.csv")
     shibuya_daily_pop_covid = df_mean_cov.merge(jp_covid_data, on="date") # how="left"? 
     shibuya_daily_pop_covid["date"] = pd.to_datetime(shibuya_daily_pop_covid["date"], format="%Y%m%d")
+    add_soe_semi_soe_dummies(shibuya_daily_pop_covid)
 
     shibuya_daily_pop_covid.to_csv(f"{datapath}/ntt_data/shibuya_daily_pop_covid.csv")
 
@@ -164,25 +166,107 @@ def load_shibuya_daily_pop_covid():
 
 
 def plot_shibuya_covid(day_of_the_week: str = False, log: bool = False):
-    shibuya_daily_pop_covid = load_shibuya_daily_pop_covid()
+    df = load_shibuya_daily_pop_covid()
     title = "Shibuya Station Population"
 
     if day_of_the_week:
-        mask = shibuya_daily_pop_covid["date"].dt.day_name() == day_of_the_week
-        shibuya_daily_pop_covid = shibuya_daily_pop_covid[mask]
+        mask = df["date"].dt.day_name() == day_of_the_week
+        df = df[mask]
         title += f" ({day_of_the_week}s)"
 
     if log:
-        shibuya_daily_pop_covid_log = shibuya_daily_pop_covid
-        shibuya_daily_pop_covid_log[['daily_avg_population', 'total_new_cases', 'tokyo_new_cases', 'tokyo_severe_cases']] = \
-            shibuya_daily_pop_covid[['daily_avg_population', 'total_new_cases', 'tokyo_new_cases', 'tokyo_severe_cases']].apply(np.log)
+        df = df
+        df[['daily_avg_population', 'total_new_cases', 'total_severe_cases', 'total_daily_deaths']] = \
+            df[['daily_avg_population', 'total_new_cases', 'total_severe_cases', 'total_daily_deaths']].apply(np.log)
         title += " (Logged)"
 
-    shibuya_daily_pop_covid.plot(x='date', 
-                                 y=['daily_avg_population', 'total_new_cases', 'tokyo_new_cases', 'tokyo_severe_cases'])
-    plt.title(title)
-    plt.show()
+    # Extract the 'daily_avg_population', 'total_new_cases', 'total_severe_cases', 'total_daily_deaths'
+    # columns as separate arrays
+    dates = df['date'].values
+    daily_avg_population = df['daily_avg_population'].values
+    total_new_cases = df['total_new_cases'].values
+    total_severe_cases = df['total_severe_cases'].values
+    total_daily_deaths = df['total_daily_deaths'].values
 
+    # Extract the 'soe1', 'soe2', 'soe3'... columns as separate arrays
+    soe1 = df['soe1'].values
+    soe2 = df['soe2'].values
+    soe3 = df['soe3'].values
+    soe4 = df['soe4'].values
+    semisoe1 = df['semi-soe1'].values
+    semisoe2 = df['semi-soe2'].values
+
+    # Create a figure and a set of subplots
+    fig, ax = plt.subplots()
+
+    # Plot the quantities of interest on the primary y-axis
+    ax.plot(dates, daily_avg_population, color='blue', label='Daily Average Population')
+    ax.plot(dates, total_new_cases, color='red', label='total_new_cases')
+    ax.plot(dates, total_severe_cases, color='green', label='total_severe_cases')
+    ax.plot(dates, total_daily_deaths, color='purple', label='total_daily_deaths')
+
+
+    # Set the y-axis label
+    ax.set_ylabel('Population')
+
+    # show legend
+    plt.legend()
+
+    # Create a secondary y-axis with a different color map
+    ax2 = ax.twinx()
+
+    # Plot the dummy variables on the secondary y-axis with different colors
+    ax2.plot(dates, soe1, color='red', label='SOE1')
+    ax2.plot(dates, soe2, color='orange', label='SOE2')
+    ax2.plot(dates, soe3, color='green', label='SOE3')
+    ax2.plot(dates, soe4, color='purple', label='SOE4')
+    ax2.plot(dates, semisoe1, color='pink', label='SEMI-SOE1')
+    ax2.plot(dates, semisoe2, color='yellow', label='SEMI_SOE2')
+
+    # Set the y-axis label and y-axis limits
+    ax2.set_ylabel('SOE Status')
+    ax2.set_ylim(0, 1)
+
+    # Show the legend
+    plt.legend()
+    plt.title(title)
+    # Show the plot
+    plt.show()
+    # shibuya_daily_pop_covid.plot(x='date', 
+    #                              y=['daily_avg_population', 'total_new_cases', 'tokyo_new_cases', 'tokyo_severe_cases'])
+    # plt.title(title)
+    # plt.show()
+
+
+
+def add_soe_semi_soe_dummies(df: pd.DataFrame):
+    """
+    Modifies dataframe inplace by adding dummy variables to indicate state of emergency 
+    and semi state of emergency. 
+    Inputs:
+        df: pandas DataFrame with 'date' column of the form YYYY-mm-dd
+    """
+    def create_dummy_variable(row, lower_bound, upper_bound):
+        lower_bound = pd.to_datetime(lower_bound)
+        upper_bound = pd.to_datetime(upper_bound)
+        if lower_bound <= row['date'] <= upper_bound:
+            return 1
+        else:
+            return 0
+
+    # first state of emergency
+    df['soe1'] = df.apply(create_dummy_variable, args=('2020-04-07', '2020-05-25'), axis=1)
+    # second soe 
+    df['soe2'] = df.apply(create_dummy_variable, args=('2021-1-8', '2021-3-21'), axis=1)
+    # third soe 
+    df['soe3'] = df.apply(create_dummy_variable, args=('2021-4-25', '2021-6-20'), axis=1)
+    # fourth soe
+    df['soe4'] = df.apply(create_dummy_variable, args=('2021-7-12', '2021-9-12'), axis=1)
+
+    # first semi state of emergency
+    df['semi-soe1'] = df.apply(create_dummy_variable, args=('2021-4-12', '2021-4-24'), axis=1)
+    # second semi soe
+    df['semi-soe2'] = df.apply(create_dummy_variable, args=('2021-6-21', '2021-7-11'), axis=1)
 
 
 
