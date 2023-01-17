@@ -217,3 +217,4 @@ rsconnect/
 # private data
 data/ntt_data
 data/news
+*.txt
