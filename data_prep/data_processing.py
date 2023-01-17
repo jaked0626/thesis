@@ -17,7 +17,7 @@ def load_data() -> dd.DataFrame:
     ntt_df = dd.read_csv(csv_files, 
                          names=col_names,
                          dtype={'date': 'str', 'day_of_week': 'str', 'time': 'str', 'area': 'str',
-                         'residence': 'str', 'age': 'int64', 'gender': 'str', 'population': 'int64'})
+                                'residence': 'str', 'age': 'int64', 'gender': 'str', 'population': 'int64'})
     ntt_df = ntt_df.drop(columns = ["residence", "age", "gender"])
     ntt_df = ntt_df.dropna()
     
@@ -158,9 +158,9 @@ def load_shibuya_daily_pop_covid():
     jp_covid_data = pd.read_csv(f"{datapath}/covid_data/jp_covid_data.csv")
     shibuya_daily_pop_covid = df_mean_cov.merge(jp_covid_data, on="date") # how="left"? 
     shibuya_daily_pop_covid["date"] = pd.to_datetime(shibuya_daily_pop_covid["date"], format="%Y%m%d")
-    add_soe_semi_soe_dummies(shibuya_daily_pop_covid)
+    add_covid_dummies(shibuya_daily_pop_covid)
 
-    shibuya_daily_pop_covid.to_csv(f"{datapath}/ntt_data/shibuya_daily_pop_covid.csv")
+    shibuya_daily_pop_covid.to_csv(f"{datapath}/ntt_data/shibuya_daily_pop_covid.csv", index=False)
 
     return shibuya_daily_pop_covid
 
@@ -239,7 +239,7 @@ def plot_shibuya_covid(day_of_the_week: str = False, log: bool = False):
 
 
 
-def add_soe_semi_soe_dummies(df: pd.DataFrame):
+def add_covid_dummies(df: pd.DataFrame):
     """
     Modifies dataframe inplace by adding dummy variables to indicate state of emergency 
     and semi state of emergency. 
@@ -268,6 +268,22 @@ def add_soe_semi_soe_dummies(df: pd.DataFrame):
     # second semi soe
     df['semi-soe2'] = df.apply(create_dummy_variable, args=('2021-6-21', '2021-7-11'), axis=1)
 
+    # first wave 
+    df['wave1'] = df.apply(create_dummy_variable, args=('2020-1-29', '2020-6-13'), axis=1)
+    # second wave
+    df['wave2'] = df.apply(create_dummy_variable, args=('2020-6-14', '2020-10-9'), axis=1)
+    # third wave
+    df['wave3'] = df.apply(create_dummy_variable, args=('2020-10-10', '2021-2-28'), axis=1)
+    # fourth wave
+    df['wave4'] = df.apply(create_dummy_variable, args=('2021-3-1', '2021-6-20'), axis=1)
+    # fifth wave
+    df['wave5'] = df.apply(create_dummy_variable, args=('2021-6-21', '2021-12-31'), axis=1)
 
 
+def main():
+    load_shibuya_daily_pop_covid()
+
+
+if __name__ == "__main__":
+    main()
 
