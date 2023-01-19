@@ -35,12 +35,10 @@ class MainichiDriver:
         self.click(maisaku_link)
 
         # login to waseda account
-        print("Please login to your Waseda account")
-        sleep(25)
+        input("Login to your MyWaseda account and click ENTER to continue: ")
 
         # switch to mainichi tab
         original_handle = self.driver.current_window_handle
-        mainichi_handle = ""
         for handle in self.driver.window_handles:
             if handle != original_handle:
                 self.driver.switch_to.window(handle) # mainichi tab
@@ -59,8 +57,7 @@ class MainichiDriver:
 
 
     def configure_search(self):
-        print("configure search parameters")
-
+        input("Configure search parameters and press ENTER to continue: ")
     
     
     def crawl_search_results(self):
@@ -116,7 +113,12 @@ class MainichiDriver:
         mainichi_df.to_csv("./data/news/mainichi.csv", index=False)
         
 
+    def crawl_main(self):
+        self.login()
+        self.configure_search()
+        self.crawl_search_results()
 
+        print("crawling complete!")
 
 
 
@@ -144,3 +146,6 @@ class MainichiDriver:
             raise Exception("Timed out waiting for element with path {} to load".format(path))
 
 
+if __name__ == "__main__":
+    m = MainichiDriver()
+    m.crawl_main()

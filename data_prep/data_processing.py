@@ -42,7 +42,7 @@ def load_data_pandas() -> pd.DataFrame:
     return ntt_df
 
 
-def filter_area(area: str) -> pd.DataFrame:
+def filter_area(area_name:str, area_prefixes: list[str]) -> pd.DataFrame:
     load_dotenv()
     csv_dir = os.getenv("RAW_NTT_DATA_PATH")
     csv_files = [os.path.join(csv_dir, f) for f in os.listdir(csv_dir) if f.endswith('.csv') and f[0] != "."]
@@ -50,13 +50,17 @@ def filter_area(area: str) -> pd.DataFrame:
     datatypes = {'date': 'str', 'day_of_week': 'str', 'time': 'str', 'area': 'str',
                  'residence': 'str', 'age': 'int64', 'gender': 'str', 'population': 'int64'}
     df_lst = []
+    conditions = df['area'].str.startswith(area_prefixes[0])
+    for prefix in area_prefixes[1:]:
+        conditions |= df['area'].str.startswith(prefix)
     print(f"loading following files into dataframe object: {csv_files}")
     for filepath in csv_files:
         print(filepath)
         df = pd.read_csv(filepath, names = col_names, dtype = datatypes)
-        df = df[df.area.str.startswith(area)]
+        df = df[conditions]
         df_lst.append(df)
     ntt_df = pd.concat(df_lst, axis = 0)
+    ntt_df.to_csv(f"./data/ntt_data/{area_name}.csv")
 
     return ntt_df
 
@@ -158,7 +162,7 @@ def load_shibuya_daily_pop_covid():
     jp_covid_data = pd.read_csv(f"{datapath}/covid_data/jp_covid_data.csv")
     shibuya_daily_pop_covid = df_mean_cov.merge(jp_covid_data, on="date") # how="left"? 
     shibuya_daily_pop_covid["date"] = pd.to_datetime(shibuya_daily_pop_covid["date"], format="%Y%m%d")
-    add_covid_dummies(shibuya_daily_pop_covid)
+    add_dummies(shibuya_daily_pop_covid)
 
     shibuya_daily_pop_covid.to_csv(f"{datapath}/ntt_data/shibuya_daily_pop_covid.csv", index=False)
 
@@ -239,7 +243,7 @@ def plot_shibuya_covid(day_of_the_week: str = False, log: bool = False):
 
 
 
-def add_covid_dummies(df: pd.DataFrame):
+def add_dummies(df: pd.DataFrame):
     """
     Modifies dataframe inplace by adding dummy variables to indicate state of emergency 
     and semi state of emergency. 

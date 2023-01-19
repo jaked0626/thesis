@@ -96,10 +96,6 @@ class AsahiDriver:
         asahi_df.to_csv("./data/news/asahi.csv")
         
 
-
-
-
-
     def click(self, element):
         """ click unclickable elements on page """
         self.driver.execute_script('arguments[0].click();', element)
