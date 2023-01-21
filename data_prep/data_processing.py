@@ -17,7 +17,7 @@ def load_data() -> dd.DataFrame:
     ntt_df = dd.read_csv(csv_files, 
                          names=col_names,
                          dtype={'date': 'str', 'day_of_week': 'str', 'time': 'str', 'area': 'str',
-                                'residence': 'str', 'age': 'int64', 'gender': 'str', 'population': 'int64'})
+                                'residence': 'str', 'age': 'Int64', 'gender': 'str', 'population': 'Int64'})
     ntt_df = ntt_df.drop(columns = ["residence", "age", "gender"])
     ntt_df = ntt_df.dropna()
     
@@ -27,15 +27,15 @@ def load_data() -> dd.DataFrame:
 def load_data_pandas() -> pd.DataFrame:
     load_dotenv()
     csv_dir = os.getenv("RAW_NTT_DATA_PATH")
-    csv_files = [os.path.join(csv_dir, f) for f in os.listdir(csv_dir) if f.endswith('.csv') and f[0] != "."]
+    csv_files = [os.path.join(csv_dir, f) for f in os.listdir(csv_dir) if f.endswith('.csv') and f[0] != "." and f[6:10] != "2019"] # only interested in covid
     col_names = ["date", "day_of_week", "time", "area", "residence", "age", "gender", "population"]
     datatypes = {'date': 'str', 'day_of_week': 'str', 'time': 'str', 'area': 'str',
-                 'residence': 'str', 'age': 'int64', 'gender': 'str', 'population': 'int64'}
+                 'residence': 'str', 'age': 'Int64', 'gender': 'str', 'population': 'Int64'}
     df_lst = []
     print(f"loading following files into dataframe object: {csv_files}")
     for filepath in csv_files:
         print(filepath)
-        df = pd.read_csv(filepath, names = col_names, dtype = datatypes)
+        df = pd.read_csv(filepath, names = col_names, dtype = datatypes, on_bad_lines="skip")
         df_lst.append(df)
     ntt_df = pd.concat(df_lst, axis = 0)
 
@@ -45,20 +45,21 @@ def load_data_pandas() -> pd.DataFrame:
 def filter_area(area_name:str, area_prefixes: list[str]) -> pd.DataFrame:
     load_dotenv()
     csv_dir = os.getenv("RAW_NTT_DATA_PATH")
-    csv_files = [os.path.join(csv_dir, f) for f in os.listdir(csv_dir) if f.endswith('.csv') and f[0] != "."]
+    csv_files = [os.path.join(csv_dir, f) for f in os.listdir(csv_dir) if f.endswith('.csv') and f[0] != "." and f[6:10] != "2019"]
     col_names = ["date", "day_of_week", "time", "area", "residence", "age", "gender", "population"]
     datatypes = {'date': 'str', 'day_of_week': 'str', 'time': 'str', 'area': 'str',
-                 'residence': 'str', 'age': 'int64', 'gender': 'str', 'population': 'int64'}
+                 'residence': 'str', 'age': 'Int64', 'gender': 'str', 'population': 'Int64'}
     df_lst = []
-    conditions = df['area'].str.startswith(area_prefixes[0])
-    for prefix in area_prefixes[1:]:
-        conditions |= df['area'].str.startswith(prefix)
     print(f"loading following files into dataframe object: {csv_files}")
-    for filepath in csv_files:
-        print(filepath)
-        df = pd.read_csv(filepath, names = col_names, dtype = datatypes)
+    for i, filepath in enumerate(csv_files):
+        print(f"parsing {filepath}")
+        df = pd.read_csv(filepath, names = col_names, dtype = datatypes, on_bad_lines="skip")
+        conditions = df['area'].str.startswith(area_prefixes[0])
+        for prefix in area_prefixes[1:]:
+            conditions |= df['area'].str.startswith(prefix)
         df = df[conditions]
         df_lst.append(df)
+        print(f"{round((i + 1) * 100 / len(csv_files))}% complete")
     ntt_df = pd.concat(df_lst, axis = 0)
     ntt_df.to_csv(f"./data/ntt_data/{area_name}.csv")
 
@@ -75,8 +76,8 @@ def get_summary():
             df = pd.read_csv(filepath, 
                              names = col_names, 
                              dtype={'date': 'str', 'day_of_week': 'str', 'time': 'str', 
-                                   'area': 'str', 'residence': 'str', 'age': 'int64', 
-                                   'gender': 'str', 'population': 'int64'})
+                                   'area': 'str', 'residence': 'str', 'age': 'Int64', 
+                                   'gender': 'str', 'population': 'Int64'})
             print(df.describe())
             print(df.population.mean())
         except Exception:
@@ -285,7 +286,10 @@ def add_dummies(df: pd.DataFrame):
 
 
 def main():
-    load_shibuya_daily_pop_covid()
+    # load_shibuya_daily_pop_covid()
+    filter_area("shibuya_station_1", ["53393595", "53393596", "53393585", "53393586"])
+    filter_area("tokyo_ootemachi", ["53394611", "53394621"])
+    filter_area("mitaka", ["53394434", "53394444"])
 
 
 if __name__ == "__main__":
