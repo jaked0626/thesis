@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from bs4 import BeautifulSoup
 import pandas as pd
 from selenium.webdriver.support.ui import Select
-import re
 
 @dataclass
 class NikkeiDriver:
@@ -36,7 +35,7 @@ class NikkeiDriver:
         self.click(nikkei_link)
 
         # login to waseda account
-        input("Login to your Waseda Account and click ENTER to continue: ")
+        input("Login to your Waseda Account and press <ENTER> to continue: ")
 
         # switch to nikkei tab
         original_handle = self.driver.current_window_handle
@@ -50,7 +49,7 @@ class NikkeiDriver:
         article_search_btn = self.find_element(By.XPATH, '//*[@id="nk-mainmenu"]/div/div[1]/div/ul/li[2]/p')
         self.click(article_search_btn)
         sleep(3)
-        input("Configure search parameters and press ENTER to continue: ")
+        input("Configure search parameters and press <ENTER> to continue: ")
         # show 400 results per page 
         show_400_btn = Select(self.find_element(By.XPATH, '//div[@class="nk-pn-info-search-result nk-np-info-search-result-up"]/div[@class="nk-pn-info-sc"]/select[@name="cnt"]'))
         show_400_btn.select_by_visible_text("400")
@@ -60,28 +59,41 @@ class NikkeiDriver:
         # confirm show articles in pop up 
         confirm_btn = self.find_element(By.XPATH, '//button[@class="nk-popup-ok"]')
         self.click(confirm_btn)
-        sleep(5)
+        sleep(20)
         
     
     def crawl_search_results(self):
+        print("crawling (this may take a while")
+        # store results
         dates = []
         titles = []
         articles = []
+
+        # initialize cache
+        with open("titles.txt", "w") as f:
+            f.writelines("")
+        with open("dates.txt", "w") as f:
+            f.writelines("")
+        with open("articles.txt", "w") as f:
+            f.writelines("")
+        
+        # iterate while go 
         go = True
         while go:
             # select all articles shown in page
             select_all_btn = self.driver.find_element("xpath", '//div[@class="nk-navigator-select-all"]')
             self.click(select_all_btn)
-            sleep(3)
+            sleep(5)
 
             # open all articles
-            open_all_btn = self.driver.find_element("xpath", '//div[@class="nk-list-navigator-honbun"]')
+            open_all_btn = self.driver.find_element("xpath", '//button[@class="nk-list-navigator-honbun"]')
             self.click(open_all_btn)
+            sleep(1)
 
             # press confirm popup
             confirm_btn = self.driver.find_element("xpath", '//button[@class="nk-popup-ok"]')
             self.click(confirm_btn)
-            sleep(20)
+            sleep(100)
 
             # get html and build soup 
             html = self.driver.page_source
@@ -89,34 +101,40 @@ class NikkeiDriver:
 
             # parse soup to find all article titles
             title_blocks = soup.find_all("h2", class_="nk-gv-bodytitle")
-            titles += [title_block.text for title_block in title_blocks]
-            with open("titles.txt", "w") as f:
-                f.writelines("\n".join(titles))
+            titles_temp = [title_block.text for title_block in title_blocks]
+            with open("titles.txt", "a") as f:
+                f.writelines("\n".join(titles_temp))
 
             # parse soup to find all article dates
-            subtitle_blocks = soup.find_all("div", class_='//div[@class="nk-gv-attribute"]')
-            dates += [subtitle_block.text[:10].replace("/", "-") for subtitle_block in subtitle_blocks]
-            with open("dates.txt", "w") as f:
-                f.writelines("\n".join(dates))
+            subtitle_blocks = soup.find_all("div", class_="nk-gv-attribute")
+            dates_temp = [subtitle_block.text[:10] for subtitle_block in subtitle_blocks]
+            with open("dates.txt", "a") as f:
+                f.writelines("\n".join(dates_temp))
 
             # parse soup to find all articles
             # xpath //td[@class="nk-gv-body-view nk-gv-artbody nk-gv-artbody-honbun"]//td
             article_blocks = soup.find_all("td", class_="nk-gv-body-view nk-gv-artbody nk-gv-artbody-honbun")
-            articles += [article_block.find("td").text.replace(",", "") for article_block in article_blocks]
-            with open("articles.txt", "w") as f:
-                f.writelines("\n".join(articles))
+            articles_temp = [article_block.find("td").text.replace(",", "") for article_block in article_blocks]
+            with open("articles.txt", "a") as f:
+                f.writelines("\n".join(articles_temp))
+
+            # add temporary titles, articles, dates
+            dates += dates_temp
+            titles += titles_temp
+            articles += articles_temp
 
             self.driver.back()
+            sleep(5)
             
             try:
-                btn = self.driver.find_element(By.PARTIAL_LINK_TEXT, "次へ")
+                btn = self.driver.find_element(By.XPATH, '//li[@class="nk-navigator-next"]')
                 self.click(btn)
-                sleep(10)
+                sleep(30)
             except Exception:
                 go = False
         
         nikkei_df = pd.DataFrame({"date": dates, "title": titles, "text": articles})
-        nikkei_df["date"] = pd.to_datetime(nikkei_df["date"], format="%Y.%m.%d")
+        nikkei_df["date"] = pd.to_datetime(nikkei_df["date"], format="%Y/%m/%d")
         nikkei_df.to_csv("./data/news/nikkei.csv", index=False)
         
 
@@ -153,7 +171,6 @@ class NikkeiDriver:
 def main():
     n = NikkeiDriver()
     n.main()
-
 
 if __name__=="__main__":
     main()
