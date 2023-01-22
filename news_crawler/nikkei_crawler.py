@@ -103,20 +103,20 @@ class NikkeiDriver:
             title_blocks = soup.find_all("h2", class_="nk-gv-bodytitle")
             titles_temp = [title_block.text for title_block in title_blocks]
             with open("titles.txt", "a") as f:
-                f.writelines("\n".join(titles_temp))
+                f.writelines("\n".join(titles_temp) + "\n")
 
             # parse soup to find all article dates
             subtitle_blocks = soup.find_all("div", class_="nk-gv-attribute")
             dates_temp = [subtitle_block.text[:10] for subtitle_block in subtitle_blocks]
             with open("dates.txt", "a") as f:
-                f.writelines("\n".join(dates_temp))
+                f.writelines("\n".join(dates_temp) + "\n")
 
             # parse soup to find all articles
             # xpath //td[@class="nk-gv-body-view nk-gv-artbody nk-gv-artbody-honbun"]//td
             article_blocks = soup.find_all("td", class_="nk-gv-body-view nk-gv-artbody nk-gv-artbody-honbun")
             articles_temp = [article_block.find("td").text.replace(",", "") for article_block in article_blocks]
             with open("articles.txt", "a") as f:
-                f.writelines("\n".join(articles_temp))
+                f.writelines("\n".join(articles_temp) + "\n")
 
             # add temporary titles, articles, dates
             dates += dates_temp
