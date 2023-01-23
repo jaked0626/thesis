@@ -61,9 +61,32 @@ def filter_area(area_name:str, area_prefixes: list[str]) -> pd.DataFrame:
         df_lst.append(df)
         print(f"{round((i + 1) * 100 / len(csv_files))}% complete")
     ntt_df = pd.concat(df_lst, axis = 0)
-    ntt_df.to_csv(f"./data/ntt_data/{area_name}.csv")
+    ntt_df.to_csv(f"./data/ntt_data/{area_name}.csv", index = False)
 
     return ntt_df
+
+def refine_ntt(ntt_data: pd.DataFrame):
+    # reformat date
+    ntt_data["date"] = pd.to_datetime(ntt_data["date"], format="%Y%m%d")
+
+    # drop unnamed columns 
+    unnamed_cols = "^Unnamed: \d"
+    cols_to_drop = ntt_data.columns[ntt_data.columns.str.contains(unnamed_cols)] 
+    ntt_data = ntt_data.drop(cols_to_drop, axis=1)
+    return ntt_data
+    
+
+def add_covid_data(ntt_df: pd.DataFrame):
+    cov_df = pd.read_csv("./data/covid_data/jp_covid_data.csv")
+    cov_df["date"] = pd.to_datetime(cov_df["date"], format="%Y%m%d")
+    ntt_cov_df = ntt_df.merge(cov_df, on="date", how="left")
+    return ntt_cov_df
+
+def add_weather_data(ntt_cov_df: pd.DataFrame):
+    weather_df = pd.read_csv("./data/weather/weather.csv")
+    weather_df["date"] = pd.to_datetime(weather_df["date"], format="%Y%m%d")
+    ntt_cov_weather_df = ntt_cov_df.merge(weather_df, on="date", how="left")
+    return ntt_cov_weather_df
 
 
 def get_summary():
