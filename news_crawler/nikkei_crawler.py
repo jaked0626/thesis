@@ -70,11 +70,11 @@ class NikkeiDriver:
         articles = []
 
         # initialize cache
-        with open("titles.txt", "w") as f:
+        with open("titles_n.txt", "w") as f:
             f.writelines("")
-        with open("dates.txt", "w") as f:
+        with open("dates_n.txt", "w") as f:
             f.writelines("")
-        with open("articles.txt", "w") as f:
+        with open("articles_n.txt", "w") as f:
             f.writelines("")
         
         # iterate while go 
@@ -99,23 +99,26 @@ class NikkeiDriver:
             html = self.driver.page_source
             soup = BeautifulSoup(html, 'html.parser')
 
-            # parse soup to find all article titles
-            title_blocks = soup.find_all("h2", class_="nk-gv-bodytitle")
-            titles_temp = [title_block.text for title_block in title_blocks]
-            with open("titles.txt", "a") as f:
-                f.writelines("\n".join(titles_temp) + "\n")
-
-            # parse soup to find all article dates
+            # parse soup for subtitle blocks and extract page number 
             subtitle_blocks = soup.find_all("div", class_="nk-gv-attribute")
-            dates_temp = [subtitle_block.text[:10] for subtitle_block in subtitle_blocks]
-            with open("dates.txt", "a") as f:
+            page_nums = [subtitle_block.text.split()[3] for subtitle_block in subtitle_blocks]
+
+            # find dates for articles on first page
+            dates_temp = [subtitle_block.text[:10] for i, subtitle_block in enumerate(subtitle_blocks) if page_nums[i] == "1ページ"]
+            with open("dates_n.txt", "a") as f:
                 f.writelines("\n".join(dates_temp) + "\n")
 
-            # parse soup to find all articles
+            # parse soup to find all article titles on first page 
+            title_blocks = soup.find_all("h2", class_="nk-gv-bodytitle")
+            titles_temp = [title_block.text for i, title_block in enumerate(title_blocks) if page_nums[i] == "1ページ"]
+            with open("titles_n.txt", "a") as f:
+                f.writelines("\n".join(titles_temp) + "\n")
+
+            # parse soup to find all articles on first page 
             # xpath //td[@class="nk-gv-body-view nk-gv-artbody nk-gv-artbody-honbun"]//td
             article_blocks = soup.find_all("td", class_="nk-gv-body-view nk-gv-artbody nk-gv-artbody-honbun")
-            articles_temp = [article_block.find("td").text.replace(",", "") for article_block in article_blocks]
-            with open("articles.txt", "a") as f:
+            articles_temp = [article_block.find("td").text.replace(",", "") for i, article_block in enumerate(article_blocks) if page_nums[i] == "1ページ"]
+            with open("articles_n.txt", "a") as f:
                 f.writelines("\n".join(articles_temp) + "\n")
 
             # add temporary titles, articles, dates

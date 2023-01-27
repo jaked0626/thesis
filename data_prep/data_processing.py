@@ -65,7 +65,19 @@ def filter_area(area_name:str, area_prefixes: list[str]) -> pd.DataFrame:
 
     return ntt_df
 
-def refine_ntt(ntt_data: pd.DataFrame):
+def filter_shibs_ootemachi_mitaka():
+    filter_area("shibuya_station_1", ["53393595", "53393596", "53393585", "53393586"])
+    filter_area("tokyo_ootemachi", ["53394611", "53394621"])
+    filter_area("mitaka", ["53394434", "53394444"])
+    return
+
+def refine_ntt(ntt_data_filename: str):
+    # store file path
+    file_path = f"./data/ntt_data/{ntt_data_filename}"
+
+    # load dataframe
+    ntt_data = pd.read_csv(file_path)
+
     # reformat date
     ntt_data["date"] = pd.to_datetime(ntt_data["date"], format="%Y%m%d")
 
@@ -73,20 +85,54 @@ def refine_ntt(ntt_data: pd.DataFrame):
     unnamed_cols = "^Unnamed: \d"
     cols_to_drop = ntt_data.columns[ntt_data.columns.str.contains(unnamed_cols)] 
     ntt_data = ntt_data.drop(cols_to_drop, axis=1)
+
+    # add_covid_data
+    ntt_data = add_covid_data(ntt_data)
+
+    # add weather data
+    ntt_data = add_weather_data(ntt_data)
+
+    # save to csv
+    ntt_data.to_csv(f"{file_path[:-4]}_refined.csv", index=False)
+
     return ntt_data
     
 
 def add_covid_data(ntt_df: pd.DataFrame):
-    cov_df = pd.read_csv("./data/covid_data/jp_covid_data.csv")
+    cov_df = pd.read_csv("./data/covid_data/jp_covid_data.csv",
+                         dtype={'total_new_cases': "Int64", 'tokyo_new_cases': "Int64", 'total_weekly_diff': "Int64",
+                                'tokyo_weekly_diff': "Int64", 'total_severe_cases': "Int64", 'tokyo_severe_cases': "Int64",
+                                'total_cum_deaths': "Int64", 'tokyo_cum_deaths': "Int64", 'total_daily_deaths': "Int64",
+                                'tokyo_daily_deaths': "Int64"})
     cov_df["date"] = pd.to_datetime(cov_df["date"], format="%Y%m%d")
     ntt_cov_df = ntt_df.merge(cov_df, on="date", how="left")
+
+    # add covid dummy variables 
+    ntt_cov_df = add_dummies(ntt_cov_df)
     return ntt_cov_df
 
 def add_weather_data(ntt_cov_df: pd.DataFrame):
-    weather_df = pd.read_csv("./data/weather/weather.csv")
+    weather_df = pd.read_csv("./data/weather_data/weather.csv")
     weather_df["date"] = pd.to_datetime(weather_df["date"], format="%Y%m%d")
-    ntt_cov_weather_df = ntt_cov_df.merge(weather_df, on="date", how="left")
+    ntt_cov_weather_df = ntt_cov_df.merge(weather_df, on=["date", "time"], how="left")
+
+    # add weather dummies 
+    ntt_cov_weather_df = pd.concat([ntt_cov_weather_df, 
+                                    pd.get_dummies(ntt_cov_weather_df['weather'], 
+                                                   prefix='weather')], axis=1)
+
     return ntt_cov_weather_df
+
+def refine_shibs_ootemachi_mitaka():
+    filenames = ["shibuya_station_1.csv", "tokyo_ootemachi.csv", "mitaka.csv"]
+    return list(map(refine_ntt, filenames))
+
+def aggregate_population(df: pd.DataFrame) -> pd.DataFrame:
+    df_grouped = df.groupby(['date', 'time'])
+    df_agg = df_grouped['population'].sum()
+    df_daily_mean = df_agg.groupby("date").mean("population")
+    df_daily_mean = df_daily_mean.to_frame(name="daily_avg_population")
+    df_daily_mean = df_daily_mean.sort_values(by='date')
 
 
 def get_summary():
@@ -307,12 +353,17 @@ def add_dummies(df: pd.DataFrame):
     # fifth wave
     df['wave5'] = df.apply(create_dummy_variable, args=('2021-6-21', '2021-12-31'), axis=1)
 
+    return df
+
+
 
 def main():
     # load_shibuya_daily_pop_covid()
-    filter_area("shibuya_station_1", ["53393595", "53393596", "53393585", "53393586"])
-    filter_area("tokyo_ootemachi", ["53394611", "53394621"])
-    filter_area("mitaka", ["53394434", "53394444"])
+    # filter_area("shibuya_station_1", ["53393595", "53393596", "53393585", "53393586"])
+    # filter_area("tokyo_ootemachi", ["53394611", "53394621"])
+    # filter_area("mitaka", ["53394434", "53394444"])
+    refine_shibs_ootemachi_mitaka()
+    return
 
 
 if __name__ == "__main__":

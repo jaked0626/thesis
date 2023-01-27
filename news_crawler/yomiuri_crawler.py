@@ -88,13 +88,15 @@ class YomiuriDriver:
             issue_blocks = soup.find_all("th", style="width:60px;vertical-align:middle;padding-left:7px;padding-right:3px;")
             issues = [issue_block.text for issue_block in issue_blocks]
 
-            # # Indices of morning issues
-            # morning_indices = issues[issues == "東京朝刊"]
+            # parse soup to find all page number info th style="width:38px;vertical-align:middle;padding-left:7px;padding-right:3px;"
+            page_num_blocks = soup.find_all("th", style="width:38px;vertical-align:middle;padding-left:7px;padding-right:3px;")
+            page_nums = [page_num.text for page_num in page_num_blocks if page_num.text[-1] == "頁"]
 
-            # parse soup to find all article titles
+
+            # parse soup to find all article titles on first page
             title_blocks = soup.find_all("th", class_="wp50")
             titles_temp = [title_block.text for title_block in title_blocks]
-            titles_temp = [title for i, title in enumerate(titles_temp) if issues[i] == "東京朝刊"]
+            titles_temp = [title for i, title in enumerate(titles_temp) if (issues[i] == "東京朝刊" and page_nums[i] == "01頁")]
 
             with open("titles.txt", "a") as f:
                 f.writelines("\n".join(titles_temp) + "\n")
@@ -102,14 +104,14 @@ class YomiuriDriver:
             # parse soup to find all article dates
             date_blocks = soup.find_all("th", style="width:80px;vertical-align:middle;")
             dates_temp = [date_block.text for date_block in date_blocks]
-            dates_temp = [date for i, date in enumerate(dates_temp) if issues[i] == "東京朝刊"]
+            dates_temp = [date for i, date in enumerate(dates_temp) if (issues[i] == "東京朝刊" and page_nums[i] == "01頁")]
             with open("dates.txt", "a") as f:
                 f.writelines("\n".join(dates_temp) + "\n")
 
             # parse soup to find all articles
             article_blocks = soup.find_all("p", class_="mb10")
             articles_temp = [article_block.text.replace(",", "").replace("\n","").replace('”', '') for article_block in article_blocks]
-            articles_temp = [article for i, article in enumerate(articles_temp) if issues[i] == "東京朝刊"]
+            articles_temp = [article for i, article in enumerate(articles_temp) if (issues[i] == "東京朝刊" and page_nums[i] == "01頁")]
             with open("articles.txt", "a") as f:
                 f.writelines("\n".join(articles_temp) + "\n")
 
