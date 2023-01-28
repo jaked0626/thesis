@@ -218,3 +218,6 @@ rsconnect/
 data/ntt_data
 data/news
 *.txt
+
+# large size files 
+data_prep/topic_modeling/topic_model
