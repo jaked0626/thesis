@@ -16,11 +16,14 @@ import MeCab
 from dataclasses import dataclass
 import numpy as np
 import gensim
+import re
+import pyLDAvis
+import pyLDAvis.gensim_models as gensimvis
 
 NEWS_PATH = "./data/news/{}.csv"
 
 @dataclass 
-class TopicModelBert:
+class BERTopicResult:
     model: BERTopic
     topics: list
     probs: np.array
@@ -44,12 +47,13 @@ def load_articles():
     
     return total_df
 
-def parse(tweet_temp):
+def parse(tweet_temp, verbose=False):
     t = MeCab.Tagger()
     temp1 = t.parse(tweet_temp)
     temp2 = temp1.split("\n")
-    print(temp1)
-    print(temp2)
+    if verbose: 
+        print(temp1)
+        print(temp2)
     t_list = []
     for keitaiso in temp2:
         if keitaiso not in ["EOS",""]:
@@ -67,12 +71,15 @@ def parse_to_df(tweet_temp):
                                  "品詞細分類2","品詞細分類3",
                                  "活用型","活用形","原形","読み","発音"])
 
-def make_lda_docs(texts: list[str], lemmatize: bool = False) -> list:
+def make_lda_docs(texts: list[str], 
+                  keep_pos0: list[str]=["名詞", "動詞", "形容詞", "形容動詞"],
+                  remove_pos1: list[str]=[],
+                  lemmatize: bool=False) -> list[str]:
     docs = []
     for text in texts:
         df = parse_to_df(text)
-        df = df[df["品詞"].isin(["名詞", "動詞"])]
-        df = df[df["品詞細分類1"] != "固有名詞"]
+        df = df[df["品詞"].isin(keep_pos0)]
+        df = df[~df["品詞細分類1"].isin(remove_pos1)]
         if lemmatize:
             doc = " ".join(df["原形"]).replace("*", "")
         else:
@@ -81,16 +88,45 @@ def make_lda_docs(texts: list[str], lemmatize: bool = False) -> list:
     
     return docs
 
-def perform_lda(texts: list[str]) -> gensim.models.LdaModel:
-    # docs = articles["title"] + articles["text"]
-    docs = [doc.split() for doc in make_lda_docs(texts)]
+def remove_words(docs: list[str], words: list[str]) -> list[str]:
+    pattern = "|".join(words)
+
+    return [re.sub(pattern, '', doc) for doc in docs]
+
+@dataclass
+class LDAResult:
+    lda: gensim.models.LdaModel
+    corpus_arr: np.array
+    coherence: gensim.models.coherencemodel.CoherenceModel
+    dfm: list
+    viz: pyLDAvis.PreparedData
+
+    def show_viz(self):
+        return pyLDAvis.display(self.viz)
+
+
+def perform_lda(texts: list[str], 
+                n_cluster: int = 6, 
+                keep_pos0: list[str] = ["名詞", "動詞"], 
+                remove_pos1: list[str]=[],
+                lemmatize: bool = False,
+                verbose: bool = False) -> gensim.models.LdaModel:
+    """
+    Inputs:
+      texts list[str]: raw texts. Any preprocessing such as word
+        removal should be done 
+    """
+    docs = [doc.split() for doc in make_lda_docs(texts=texts, 
+                                                 keep_pos0=keep_pos0, 
+                                                 remove_pos1=remove_pos1,
+                                                 lemmatize=lemmatize)]
     dictionary = gensim.corpora.Dictionary(docs)
     corpus = [dictionary.doc2bow(doc) for doc in docs]
-    print(f"Example of original text:\n {texts[0][:200]}")
-    print(f"Parsed for LDA:\n {','.join(docs[0])}")
+    if verbose:
+        print(f"Example of original text:\n {texts[0][:200]}")
+        print(f"Parsed for LDA:\n {','.join(docs[0])}")
 
     # perform lda 
-    n_cluster = 6
     lda = gensim.models.LdaModel(
                     corpus=corpus,
                     id2word=dictionary,
@@ -101,8 +137,22 @@ def perform_lda(texts: list[str]) -> gensim.models.LdaModel:
                     chunksize=10000,
                     random_state=1
                     )
-                    
-    return lda
+    # get dense 2d array of corpus 
+    corpus_lda = lda[corpus]
+    corpus_arr = gensim.matutils.corpus2dense(
+                 corpus_lda,
+                 num_terms=n_cluster
+                 ).T
+    # get coherence score
+    cm = gensim.models.coherencemodel.CoherenceModel(model=lda, texts=docs,\
+                                                     corpus=corpus, coherence='c_v')
+    # get visualization 
+    viz = gensimvis.prepare(lda, corpus, dictionary)
+
+    # pack results 
+    res = LDAResult(lda=lda, corpus_arr=corpus_arr, coherence=cm, dfm=corpus, viz=viz)
+
+    return res
 
 
 def add_unique_publication_count(articles: pd.DataFrame) -> pd.DataFrame:
@@ -112,12 +162,12 @@ def add_unique_publication_count(articles: pd.DataFrame) -> pd.DataFrame:
 
     return articles 
 
-def topic_modeling_bert(docs: iter, umap: UMAP = UMAP(n_neighbors=15, n_components=5, min_dist=0.0, metric='cosine')) -> TopicModelBert:
+def topic_modeling_bert(docs: iter, umap: UMAP = UMAP(n_neighbors=15, n_components=5, min_dist=0.0, metric='cosine')) -> BERTopicResult:
     model = BERTopic(language="japanese", calculate_probabilities=True, verbose=True, nr_topics = "auto", umap_model=umap) # 
     topics, probs = model.fit_transform(docs)
     doc_info = model.get_document_info(docs)
     topic_features = model.topic_representations_
-    topic_model_bert = TopicModelBert(model=model, topics=topics, probs=probs, doc_info=doc_info, topic_features=topic_features)
+    topic_model_bert = BERTopicResult(model=model, topics=topics, probs=probs, doc_info=doc_info, topic_features=topic_features)
     return topic_model_bert 
 
 
