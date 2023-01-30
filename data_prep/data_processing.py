@@ -6,7 +6,15 @@ import glob
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from topic_modeling.process_articles import *
+from scipy.stats import mode
 
+
+NTT_DATA_PATH = "./data/ntt_data/{}.csv"
+
+#############################################
+## LOADING NTT DATA
+#############################################
 
 def load_data() -> dd.DataFrame:
     load_dotenv()
@@ -71,6 +79,10 @@ def filter_shibs_ootemachi_mitaka():
     filter_area("mitaka", ["53394434", "53394444"])
     return
 
+#############################################
+## ADDING COVID AND WEATHER DATA
+#############################################
+
 def refine_ntt(ntt_data_filename: str):
     # store file path
     file_path = f"./data/ntt_data/{ntt_data_filename}"
@@ -82,7 +94,7 @@ def refine_ntt(ntt_data_filename: str):
     ntt_data["date"] = pd.to_datetime(ntt_data["date"], format="%Y%m%d")
 
     # drop unnamed columns 
-    unnamed_cols = "^Unnamed: \d"
+    unnamed_cols = r"^Unnamed: \d"
     cols_to_drop = ntt_data.columns[ntt_data.columns.str.contains(unnamed_cols)] 
     ntt_data = ntt_data.drop(cols_to_drop, axis=1)
 
@@ -96,7 +108,7 @@ def refine_ntt(ntt_data_filename: str):
     ntt_data.to_csv(f"{file_path[:-4]}_refined.csv", index=False)
 
     return ntt_data
-    
+
 
 def add_covid_data(ntt_df: pd.DataFrame):
     cov_df = pd.read_csv("./data/covid_data/jp_covid_data.csv",
@@ -110,6 +122,57 @@ def add_covid_data(ntt_df: pd.DataFrame):
     # add covid dummy variables 
     ntt_cov_df = add_dummies(ntt_cov_df)
     return ntt_cov_df
+
+def add_dummies(df: pd.DataFrame):
+    """
+    Modifies dataframe inplace by adding dummy variables to indicate state of emergency 
+    and semi state of emergency. 
+    Inputs:
+        df: pandas DataFrame with 'date' column of the form YYYY-mm-dd
+    """
+    def create_dummy_variable(row, lower_bound, upper_bound):
+        lower_bound = pd.to_datetime(lower_bound)
+        upper_bound = pd.to_datetime(upper_bound)
+        if lower_bound <= row['date'] <= upper_bound:
+            return 1
+        else:
+            return 0
+
+    # first state of emergency
+    df['soe1'] = df.apply(create_dummy_variable, args=('2020-04-07', '2020-05-25'), axis=1)
+    # second soe 
+    df['soe2'] = df.apply(create_dummy_variable, args=('2021-1-8', '2021-3-21'), axis=1)
+    # third soe 
+    df['soe3'] = df.apply(create_dummy_variable, args=('2021-4-25', '2021-6-20'), axis=1)
+    # fourth soe
+    df['soe4'] = df.apply(create_dummy_variable, args=('2021-7-12', '2021-9-12'), axis=1)
+
+    # first semi state of emergency
+    df['semi-soe1'] = df.apply(create_dummy_variable, args=('2021-4-12', '2021-4-24'), axis=1)
+    # second semi soe
+    df['semi-soe2'] = df.apply(create_dummy_variable, args=('2021-6-21', '2021-7-11'), axis=1)
+
+    # first wave 
+    df['wave1'] = df.apply(create_dummy_variable, args=('2020-1-29', '2020-6-13'), axis=1)
+    # second wave
+    df['wave2'] = df.apply(create_dummy_variable, args=('2020-6-14', '2020-10-9'), axis=1)
+    # third wave
+    df['wave3'] = df.apply(create_dummy_variable, args=('2020-10-10', '2021-2-28'), axis=1)
+    # fourth wave
+    df['wave4'] = df.apply(create_dummy_variable, args=('2021-3-1', '2021-6-20'), axis=1)
+    # fifth wave
+    df['wave5'] = df.apply(create_dummy_variable, args=('2021-6-21', '2021-12-31'), axis=1)
+
+    # add day of the week and holiday dummies 
+    # create day of the week dummy variables
+    df['weekday'] = df['date'].dt.weekday
+    df = pd.get_dummies(df, columns=['weekday'], prefix='weekday')
+
+    # create Japanese holiday dummy variables
+    from jpholiday import is_holiday
+    df['holiday'] = df['date'].apply(lambda x: 1 if is_holiday(x) else 0)
+
+    return df
 
 def add_weather_data(ntt_cov_df: pd.DataFrame):
     weather_df = pd.read_csv("./data/weather_data/weather.csv")
@@ -127,32 +190,66 @@ def refine_shibs_ootemachi_mitaka():
     filenames = ["shibuya_station_1.csv", "tokyo_ootemachi.csv", "mitaka.csv"]
     return list(map(refine_ntt, filenames))
 
+#############################################
+## AGGREGATING AND BINNING POPULATION 
+#############################################
+
 def aggregate_population(df: pd.DataFrame) -> pd.DataFrame:
     df_grouped = df.groupby(['date', 'time'])
     df_agg = df_grouped['population'].sum()
     df_daily_mean = df_agg.groupby("date").mean("population")
     df_daily_mean = df_daily_mean.to_frame(name="daily_avg_population")
     df_daily_mean = df_daily_mean.sort_values(by='date')
+    return df_daily_mean
+
+def aggregate_by_bins(file_name: str) -> pd.DataFrame:
+    df = pd.read_csv(NTT_DATA_PATH.format(file_name))
+    df['time_bin'] = pd.cut(df['time'], 
+                            bins=[0, 800, 1700, 2400], 
+                            labels=['0-700', '800-1700', '1700-2400'], 
+                            right=False, 
+                            include_lowest=True)
+    agg_method = {
+        'population': 'sum', 
+        'rain(mm)': 'sum',
+        'temp': 'mean', 
+        **{col: "first" for col in df.columns if col not in ['population', 'rain(mm)', 'temp']}
+    }
+
+    df = df.groupby(['date', 'time']).agg(agg_method).reset_index(drop=True)
+
+    df = df.drop(['area', 'residence', 'age', 'gender', 'snow(cm)'] + list(df.columns[df.columns.str.contains(r"weather_\d+")]), axis=1)
+
+    mode_agg = lambda x: mode(x)[0][0]
+
+    agg_method = {
+        'population': 'mean', 
+        'rain(mm)': 'sum',
+        'temp': 'mean', 
+        'weather': mode_agg,
+        **{col: "first" for col in df.columns if col not in ['population', 'rain(mm)', 'temp', 'weather']}
+    }
+
+    df = df.groupby(['date', 'time_bin']).agg(agg_method).reset_index(drop=True)
+
+    df = pd.get_dummies(df, columns=['weather'], prefix='weather')
+
+    df = df.set_index('date')
+
+    df.to_csv(NTT_DATA_PATH.format(file_name + "_binned"))
+    
+    return df
+
+def aggregate_bins_shibs_ootemachi_mitaka():
+    names = ["mitaka_refined", "tokyo_ootemachi_refined", "shibuya_station_1_refined"]
+    for name in names:
+        aggregate_by_bins(name)
 
 
-def get_summary():
-    files = [f for f in os.listdir(os.getenv("RAW_NTT_DATA_PATH")) if f.endswith("csv") and f[0] != "."]
-    for f in files:
-        print(f)
-        col_names = ["date", "day_of_week", "time", "area", "residence", "age", "gender", "population"]
-        filepath = os.path.join(os.getenv("RAW_NTT_DATA_PATH"), f)
-        try:
-            df = pd.read_csv(filepath, 
-                             names = col_names, 
-                             dtype={'date': 'str', 'day_of_week': 'str', 'time': 'str', 
-                                   'area': 'str', 'residence': 'str', 'age': 'Int64', 
-                                   'gender': 'str', 'population': 'Int64'})
-            print(df.describe())
-            print(df.population.mean())
-        except Exception:
-            print(Exception)
-            print(f"{f} failed to read")
 
+#############################################
+## UTILITIES AND DATA CLEANING   
+#############################################
 
 def process_weather_data():
     datapath = "./data/weather_data"
@@ -311,49 +408,23 @@ def plot_shibuya_covid(day_of_the_week: str = False, log: bool = False):
     # plt.title(title)
     # plt.show()
 
-
-
-def add_dummies(df: pd.DataFrame):
-    """
-    Modifies dataframe inplace by adding dummy variables to indicate state of emergency 
-    and semi state of emergency. 
-    Inputs:
-        df: pandas DataFrame with 'date' column of the form YYYY-mm-dd
-    """
-    def create_dummy_variable(row, lower_bound, upper_bound):
-        lower_bound = pd.to_datetime(lower_bound)
-        upper_bound = pd.to_datetime(upper_bound)
-        if lower_bound <= row['date'] <= upper_bound:
-            return 1
-        else:
-            return 0
-
-    # first state of emergency
-    df['soe1'] = df.apply(create_dummy_variable, args=('2020-04-07', '2020-05-25'), axis=1)
-    # second soe 
-    df['soe2'] = df.apply(create_dummy_variable, args=('2021-1-8', '2021-3-21'), axis=1)
-    # third soe 
-    df['soe3'] = df.apply(create_dummy_variable, args=('2021-4-25', '2021-6-20'), axis=1)
-    # fourth soe
-    df['soe4'] = df.apply(create_dummy_variable, args=('2021-7-12', '2021-9-12'), axis=1)
-
-    # first semi state of emergency
-    df['semi-soe1'] = df.apply(create_dummy_variable, args=('2021-4-12', '2021-4-24'), axis=1)
-    # second semi soe
-    df['semi-soe2'] = df.apply(create_dummy_variable, args=('2021-6-21', '2021-7-11'), axis=1)
-
-    # first wave 
-    df['wave1'] = df.apply(create_dummy_variable, args=('2020-1-29', '2020-6-13'), axis=1)
-    # second wave
-    df['wave2'] = df.apply(create_dummy_variable, args=('2020-6-14', '2020-10-9'), axis=1)
-    # third wave
-    df['wave3'] = df.apply(create_dummy_variable, args=('2020-10-10', '2021-2-28'), axis=1)
-    # fourth wave
-    df['wave4'] = df.apply(create_dummy_variable, args=('2021-3-1', '2021-6-20'), axis=1)
-    # fifth wave
-    df['wave5'] = df.apply(create_dummy_variable, args=('2021-6-21', '2021-12-31'), axis=1)
-
-    return df
+def get_summary():
+    files = [f for f in os.listdir(os.getenv("RAW_NTT_DATA_PATH")) if f.endswith("csv") and f[0] != "."]
+    for f in files:
+        print(f)
+        col_names = ["date", "day_of_week", "time", "area", "residence", "age", "gender", "population"]
+        filepath = os.path.join(os.getenv("RAW_NTT_DATA_PATH"), f)
+        try:
+            df = pd.read_csv(filepath, 
+                             names = col_names, 
+                             dtype={'date': 'str', 'day_of_week': 'str', 'time': 'str', 
+                                   'area': 'str', 'residence': 'str', 'age': 'Int64', 
+                                   'gender': 'str', 'population': 'Int64'})
+            print(df.describe())
+            print(df.population.mean())
+        except Exception:
+            print(Exception)
+            print(f"{f} failed to read")
 
 
 
@@ -362,7 +433,8 @@ def main():
     # filter_area("shibuya_station_1", ["53393595", "53393596", "53393585", "53393586"])
     # filter_area("tokyo_ootemachi", ["53394611", "53394621"])
     # filter_area("mitaka", ["53394434", "53394444"])
-    refine_shibs_ootemachi_mitaka()
+    #refine_shibs_ootemachi_mitaka()
+    aggregate_bins_shibs_ootemachi_mitaka()
     return
 
 

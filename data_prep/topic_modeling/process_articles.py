@@ -2,23 +2,22 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import re
+import numpy as np
 # Text preprocessiong
-import nltk
-# nltk.download('stopwords')
-# nltk.download('omw-1.4')
-# nltk.download('wordnet')
-# wn = nltk.WordNetLemmatizer()
+import MeCab
 # Topic model
 from bertopic import BERTopic
-# Dimension reduction
-from umap import UMAP
-import MeCab
-from dataclasses import dataclass
-import numpy as np
 import gensim
-import re
 import pyLDAvis
 import pyLDAvis.gensim_models as gensimvis
+# Dimension reduction
+from umap import UMAP
+# dataclass
+from dataclasses import dataclass
+# sentiment analysis 
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import pipeline
 
 NEWS_PATH = "./data/news/{}.csv"
 
@@ -30,6 +29,13 @@ class BERTopicResult:
     doc_info: pd.DataFrame
     topic_features: dict
 
+def topic_modeling_bert(docs: iter, umap: UMAP = UMAP(n_neighbors=15, n_components=5, min_dist=0.0, metric='cosine')) -> BERTopicResult:
+    model = BERTopic(language="japanese", calculate_probabilities=True, verbose=True, nr_topics = "auto") #umap_model=umap) # 
+    topics, probs = model.fit_transform(docs)
+    doc_info = model.get_document_info(docs)
+    topic_features = model.topic_representations_
+    topic_model_bert = BERTopicResult(model=model, topics=topics, probs=probs, doc_info=doc_info, topic_features=topic_features)
+    return topic_model_bert 
 
 def load_articles():
     newspapers = ["mainichi", "yomiuri", "asahi", "nikkei"]
@@ -155,20 +161,70 @@ def perform_lda(texts: list[str],
     return res
 
 
-def add_unique_publication_count(articles: pd.DataFrame) -> pd.DataFrame:
+def add_num_publication_count(articles: pd.DataFrame) -> pd.DataFrame:
     # add indicator for number of unique publications on that date 
-    unique_publications = articles.groupby(by=['date'])['publication'].nunique().rename('unique_publications')
+    unique_publications = articles.groupby(by=['date'])['publication'].nunique().rename('num_publications_reporting')
     articles = articles.merge(unique_publications, on="date", how="left")
 
     return articles 
 
-def topic_modeling_bert(docs: iter, umap: UMAP = UMAP(n_neighbors=15, n_components=5, min_dist=0.0, metric='cosine')) -> BERTopicResult:
-    model = BERTopic(language="japanese", calculate_probabilities=True, verbose=True, nr_topics = "auto", umap_model=umap) # 
-    topics, probs = model.fit_transform(docs)
-    doc_info = model.get_document_info(docs)
-    topic_features = model.topic_representations_
-    topic_model_bert = BERTopicResult(model=model, topics=topics, probs=probs, doc_info=doc_info, topic_features=topic_features)
-    return topic_model_bert 
+def pd_viewer(df: pd.DataFrame):
+    for i, row in df.iterrows():
+        print(f"{row['date']}: {row['title']}")
+        print(f'topic      : {row["topic"]}')
+        print(f'publication: {row["publication"]}')
+        print(f'article    : \n {row["text"]}')
+        x = input("\nInput topic number to overwrite (empty <ENTER> to skip): ")
+        if x:
+            topic = int(x)
+            df.at[i, "topic"] = topic
+        urgency = input("\nRate the urgency: ")
+        if urgency:
+            df.at[i, "urgency"] = urgency
+
+        print("\033c", end="")
+
+def untuned_sentiment_analysis(texts: list[str]) -> list[dict]:
+    tokenizer = AutoTokenizer.from_pretrained("cl-tohoku/bert-base-japanese-whole-word-masking")
+    model = AutoModelForSequenceClassification.from_pretrained("jarvisx17/japanese-sentiment-analysis")
+    sentiment_analyzer = pipeline("sentiment-analysis",model=model,tokenizer=tokenizer)
+    res = list(map(sentiment_analyzer, texts))
+    return res
+
+def articles_add_sentiment(articles: pd.DataFrame) -> pd.DataFrame:
+    articles_sentiment = articles.copy()
+    articles_sentiment["title_text"] = articles_sentiment["title"] + articles_sentiment["text"]
+    labels = untuned_sentiment_analysis(articles_sentiment["title_text"].apply(lambda x: x[:512])) # hugging face limits to 512 tokens
+    articles_sentiment["sentiment_score"] = labels
+    articles_sentiment["label"] = articles_sentiment["sentiment_score"].apply(lambda x: x[0].get('label'))
+    articles_sentiment["confidence"] = articles_sentiment["sentiment_score"].apply(lambda x: x[0].get('score'))
+    articles_sentiment.to_csv(NEWS_PATH.format('articles_labeled_untuned_sentiment'), index=False)
+    return articles_sentiment
+
+def filter_kansenshasuu_articles(articles: pd.DataFrame) -> pd.DataFrame:
+    # define patterns to look for 
+    pattern1 = r"新規.*感染|感染.*確認|\d+例"
+    pattern2 = r"コロナ|武漢.*肺炎|新型.*肺炎"
+    pattern3 = r"日本|全国|国内"
+    # prepare filtered dataframe
+    filtered_df = articles.copy()
+    filtered_df["title_text"] = articles["title"] + articles['text']
+    # define condition for filtering 
+    mask = filtered_df["title_text"].str.contains(pattern1) & \
+           filtered_df["title_text"].str.contains(pattern2) & \
+           filtered_df["title_text"].str.contains(pattern3) 
+
+    filtered_df = filtered_df[mask]
+
+    # add number of unique publications reporting per date
+    filtered_df = add_num_publication_count(filtered_df)
+
+    filtered_df.to_csv(NEWS_PATH.format("articles_filtered_by_phrases"))
+
+    return filtered_df
+
+
+
 
 
 def main():
