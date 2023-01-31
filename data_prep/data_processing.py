@@ -6,7 +6,7 @@ import glob
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from topic_modeling.process_articles import *
+from .topic_modeling.process_articles import *
 from scipy.stats import mode
 
 
@@ -433,6 +433,7 @@ def main():
     # filter_area("shibuya_station_1", ["53393595", "53393596", "53393585", "53393586"])
     # filter_area("tokyo_ootemachi", ["53394611", "53394621"])
     # filter_area("mitaka", ["53394434", "53394444"])
+    # filter_area("kiyose_jutakugai", ["533954412"])
     #refine_shibs_ootemachi_mitaka()
     aggregate_bins_shibs_ootemachi_mitaka()
     return
