@@ -1,9 +1,9 @@
 ---
-title: "Does Media Matter?"
+title: "The Pressing Influence of the Press"
 subtitle: "A Quantitative Analysis of Media Effects on Human Behavior Through The Case of Covid."
-author: "Jake Underland"
+author: "Jake Underland^[Source code for this paper can be found here: https://github.com/jaked0626/thesis]"
 date: "`r Sys.Date()`"
-abstract: "This paper aims to examine the impact of media on human behavior through a case study of the COVID-19 pandemic. The study employs a quantitative research method to analyze the relationship between media coverage and public behavior. The results of the analysis will provide insights into the role of media in shaping human behavior, and the implications of these findings for policymakers and practitioners in the media industry."
+abstract: "This paper aims to examine the impact of media on human behavior through a case study of the COVID-19 pandemic in Tokyo, Japan. The study employs a quantitative research method to analyze the relationship between media coverage and public behavior. First, a quantitative metric measuring the perceived urgency in news articles reporting COVID-19 is derived. Then, the urgency scores are regressed on changes in human mobility. The results find that urgency in news reports were significant in changing the mobility patterns of people in leisure, business, and residential areas of Tokyo. The analysis provides insights into the role of media in shaping human behavior, and the implications of these findings for policymakers and practitioners."
 bibliography: paper.bib
 csl: apa-single-spaced.csl
 nocite: '@*'
@@ -79,13 +79,13 @@ The mobile location data analyzed in this study was collected from [NTT Docomo I
 | Half Grid Square |   15 seconds | 22.5 seconds | about 500 m |
 
 
-    The grids selected in this study are described in the table below. The choice of the grids depends on the characteristics of the location. The first grid extracts areas around Shibuya station, a busy hub of entertainment and leisure facilities. The second grid extracts areas in and around Ootemachi station, a major business hub. The third grid is the smallest of all of them and is located in the remote suburbs of Tokyo, in a city called Kiyose. This grid was selected for being a primarily residential area (a bed town) containing residences and a housing complex, and for being the author's home. The grid representation of Shibuya Station is included in the appendix as Figure \@ref(fig:shibuyamesh).  
+    The grids selected in this study are described in the table below. The choice of the grids depends on the characteristics of the location. The first grid extracts areas around Shibuya station, a busy hub of entertainment and leisure facilities. The second grid extracts areas in and around Ootemachi station, a major business hub. The third grid is the smallest of all of them and is located in the remote suburbs of Tokyo, in a city called Kiyose. This grid was selected for being a primarily residential area (a bed town) containing residences and a housing complex, and for being the author's home. The grid representation of each area is included in the appendix as Figures \@ref(fig:shibuyamesh), \@ref(fig:ootemachimesh), \@ref(fig:kiyosemesh).  
 
 | Name | Basic Grid | Half Grid | Area | Description | 
 | ------------ |  ----------------- | ---------------- | ----------- | ------- |  
 | Shibuya |  5339-35-95, 5339-35-96, 5339-35-85, 5339-35-86 | | 4 $\text{km}^2$ |Leisure |   
 | Ootemachi | 5339-46-11, 5339-46-21 | | 2$\text{km}^2$ | Business | 
-| Kiyose | | 5339-54-41-2 | 0.25 $\text{km}^2$ | Residential |   
+| Kiyose | | 5339-54-53-1 | 0.25 $\text{km}^2$ | Residential |   
     This paper uses population data of the above grids from 2020-01-01 to 2021-12-31 to focus on population responses to news reports on the pandemic. The population data is aggregated over the grids so that each location (Shibuya, Ootemachi, Kiyose) has one population parameter (the sum of population in each grid contained in the area). Further, instead of dealing with hourly population information, the data is divided into 3 time bins: Daytime (8:00-17:00, or work hours), Evening (17:00-24:00), and Night (24:00-8:00). For this study, Daytime population was used.  After binning the data, population is averaged across hours within the Daytime hours per area per day. This way, we end up with the mean daytime population of each area per day. The resultant data set is shown in Table \@ref(tab:table3), as well as descriptive statistics of the data in Table \@ref(tab:table4) and a plot of the logged population per area in Figure \@ref(fig:figure1).  
 
 ```{r table3, label="table3", fig.width=5, fig.pos = "H", out.extra = ""}
@@ -326,9 +326,8 @@ The results imply that the way news is reported and presented can have a signifi
 This study is limited by a variety of factors.   
     First, the validity of the urgency scores used in this study are difficult to verify. Due to the lack of APIs for the Japanese newspaper databases crawled, the author had to code a custom webcrawler for each database. The query logic and search conditions for each database varied widely, resulting in different search terms per database, and producing varying numbers of articles from each. This may have complicated the topic modeling process and produced topics with questionable reliability. Furthermore, the use of a proxy instead of a properly trained SVM to classify urgency scores means that the 'urgency' in the articles represented by the proxy urgency scores may not directly take into account the voice, reporting techniques, and other textual characteristics. Incorporating such characteristics would result in a richer, more precise analysis. It is also possible the implicit assumption that most media publications in Japan correlate with the reports of the four major newspaper publications selected in this study is not true, in which case the correlation found could be spurious.  
     Second, there is always the possibility of endogeneity. Shibuya and Ootemachi especially are major, densely populated hubs of Tokyo. Mobility patterns in these areas could potentially shape narratives in news reports. More robust statistical techniques along with methods for causal inference could provide a clearer, more robust picture of the true relationship between media and human behavior. 
-    Finally, the study is limited to the setting of COVID-19. It is unclear how generalizable the results obtained in this article are to other situations, especially considering how unique a phenomenon COVID-19 was.  
-
-\newpage
+    Finally, the study is limited to the setting of COVID-19. It is unclear how generalizable the results obtained in this article are to other situations, especially considering how unique a phenomenon COVID-19 was.   
+    Even with its shortcomings, this study lays out a promising path for robustly inferring the effect of media without relying on self reported surveys or qualitative speculation. The techniques used in this paper, such as text analytics and the employment of mesh geospatial data, circumvent many of the hurdles that exist in previous research. With rapidly advancing NLP techniques, future research is soon to offer even more insight into the operations of language and text in our society. The author hopes that this study serves as an early step in that direction.  
 
 # References
 
@@ -339,6 +338,12 @@ This study is limited by a variety of factors.
 
 ```{r shibuyamesh, echo=F, out.width="100%", label='shibuyamesh', fig.cap="Shibuya station in grids. Source: https://www.arcgis.com/"}
 knitr::include_graphics("images/shibuya-mesh.jpg")
+```
+```{r ootemachimesh, echo=F, out.width="100%", label='ootemachimesh', fig.cap="Ootemachi station in grids. Source: https://www.arcgis.com/"}
+knitr::include_graphics("images/ootemachi-mesh.jpg")
+```
+```{r kiyosemesh, echo=F, out.width="100%", label='kiyosemesh', fig.cap="Kiyose Danchi in grids. Source: https://www.arcgis.com/"}
+knitr::include_graphics("images/kiyose-mesh.jpg")
 ```
 
 \begin{table}[!htbp] \centering
