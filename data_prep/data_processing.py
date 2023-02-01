@@ -178,6 +178,7 @@ def add_weather_data(ntt_cov_df: pd.DataFrame):
     weather_df = pd.read_csv("./data/weather_data/weather.csv")
     weather_df["date"] = pd.to_datetime(weather_df["date"], format="%Y%m%d")
     ntt_cov_weather_df = ntt_cov_df.merge(weather_df, on=["date", "time"], how="left")
+    ntt_cov_weather_df["weather"] = ntt_cov_weather_df["weather"].apply(int)
 
     # add weather dummies 
     ntt_cov_weather_df = pd.concat([ntt_cov_weather_df, 
@@ -337,8 +338,14 @@ def load_shibuya_daily_pop_covid():
 
 
 def plot_shibuya_covid(day_of_the_week: str = False, log: bool = False):
-    df = load_shibuya_daily_pop_covid()
-    title = "Shibuya Station Population"
+    df = pd.read_csv("./data/ntt_data/daytime_agg.csv")
+    df1 = pd.read_csv("./data/ntt_data/shibuya_daily_pop_covid.csv")
+    df["date"] = pd.to_datetime(df["date"])
+    df1["date"] = pd.to_datetime(df1["date"])
+    title = "Population"
+
+    df = df.merge(df1, how="left", on = "date")
+    df = df.dropna(axis=0)
 
     if day_of_the_week:
         mask = df["date"].dt.day_name() == day_of_the_week
@@ -347,17 +354,17 @@ def plot_shibuya_covid(day_of_the_week: str = False, log: bool = False):
 
     if log:
         df = df
-        df[['daily_avg_population', 'total_new_cases', 'total_severe_cases', 'total_daily_deaths']] = \
-            df[['daily_avg_population', 'total_new_cases', 'total_severe_cases', 'total_daily_deaths']].apply(np.log)
+        df[['shibuya', 'kiyose', 'ootemachi', 'tokyo_new_cases']] = \
+            df[['shibuya', 'kiyose', 'ootemachi', 'tokyo_new_cases']].apply(np.log)
         title += " (Logged)"
 
     # Extract the 'daily_avg_population', 'total_new_cases', 'total_severe_cases', 'total_daily_deaths'
     # columns as separate arrays
     dates = df['date'].values
-    daily_avg_population = df['daily_avg_population'].values
-    total_new_cases = df['total_new_cases'].values
-    total_severe_cases = df['total_severe_cases'].values
-    total_daily_deaths = df['total_daily_deaths'].values
+    shibuya = df['shibuya'].values
+    tokyo_new_cases = df['tokyo_new_cases'].values
+    kiyose = df['kiyose'].values
+    ootemachi = df['ootemachi'].values
 
     # Extract the 'soe1', 'soe2', 'soe3'... columns as separate arrays
     soe1 = df['soe1'].values
@@ -371,10 +378,10 @@ def plot_shibuya_covid(day_of_the_week: str = False, log: bool = False):
     fig, ax = plt.subplots()
 
     # Plot the quantities of interest on the primary y-axis
-    ax.plot(dates, daily_avg_population, color='blue', label='Daily Average Population')
-    ax.plot(dates, total_new_cases, color='red', label='total_new_cases')
-    ax.plot(dates, total_severe_cases, color='green', label='total_severe_cases')
-    ax.plot(dates, total_daily_deaths, color='purple', label='total_daily_deaths')
+    ax.plot(dates, shibuya, color='blue', label='shibuya')
+    ax.plot(dates, tokyo_new_cases, color='red', label='tokyo new covid cases')
+    ax.plot(dates, ootemachi, color='green', label='ootemachi')
+    ax.plot(dates, kiyose, color='purple', label='kiyose')
 
 
     # Set the y-axis label

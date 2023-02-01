@@ -62,6 +62,7 @@ def parse(tweet_temp, verbose=False):
         print(temp2)
     t_list = []
     for keitaiso in temp2:
+        print(keitaiso)
         if keitaiso not in ["EOS",""]:
             word,hinshi = keitaiso.split("\t")
             t_temp = [word]+hinshi.split(",")
